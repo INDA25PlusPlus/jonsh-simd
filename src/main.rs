@@ -1,6 +1,9 @@
 #![feature(portable_simd)]
+#![feature(test)]
+extern crate test;
 use image::{ImageBuffer, Rgb};
 use std::simd::{Mask, Simd, cmp::SimdPartialOrd};
+
 fn calc_simple(x0: f64, y0: f64, i: u32) -> u32 {
     let mut x = 0.0;
     let mut y = 0.0;
@@ -48,17 +51,26 @@ fn calc_simd(x0: Simd<f64, LANES>, y0: Simd<f64, LANES>, i: u32) -> Simd<u64, LA
     iteration
 }
 
-fn main() {
-    let width: usize = 1920;
-    let height: usize = 1080;
-    let max = 100;
+fn simple_image(width: usize, height: usize, xmax: f64, xmin: f64, ymax: f64, ymin: f64, max: u32) {
+    let mut img = ImageBuffer::new(width as u32, height as u32);
+    for (x, y, pixel) in img.enumerate_pixels_mut() {
+        let xp = xmin + (x as f64 / width as f64) * (xmax - xmin);
+        let yp = ymin + (y as f64 / height as f64) * (ymax - ymin);
 
-    let xmax = 0.47;
-    let xmin = -2.0;
-    let ymax = 1.12;
-    let ymin = -1.12;
-    //dessa min/max fick jag från kod-delen av mandelbrot wikipedia: https://en.wikipedia.org/wiki/Mandelbrot_set#Basic_properties:~:text=x0%C2%A0%3A%3D%20scaled%20x%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20X%20scale%20(%2D2.00%2C%200.47))%0A%20%20%20%20y0%C2%A0%3A%3D%20scaled%20y%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20Y%20scale%20(%2D1.12%2C%201.12))
+        let iteration = calc_simple(xp, yp, max);
 
+        let color = if iteration == max {
+            0
+        } else {
+            (255 * iteration / max) as u8
+        };
+
+        *pixel = Rgb([color, color, color]);
+    }
+    img.save("mandelbrot.png").unwrap();
+}
+
+fn simd_image(width: usize, height: usize, xmax: f64, xmin: f64, ymax: f64, ymin: f64, max: u32) {
     let mut img = ImageBuffer::new(width as u32, height as u32);
 
     let dx = (xmax - xmin) / width as f64;
@@ -89,28 +101,37 @@ fn main() {
             }
         }
     }
+    img.save("mandelbrot_simd.png").unwrap();
+}
+fn main() {
+    let width: usize = 1920;
+    let height: usize = 1080;
+    let max = 255;
 
-    //old code
-    //------
-    // for (x, y, pixel) in img.enumerate_pixels_mut() {
-    //     let xp = xmin + (x as f64 / width as f64) * (xmax - xmin);
-    //     let yp = ymin + (y as f64 / height as f64) * (ymax - ymin);
+    let xmax = 0.47;
+    let xmin = -2.0;
+    let ymax = 1.12;
+    let ymin = -1.12;
+    //dessa min/max fick jag från kod-delen av mandelbrot wikipedia: https://en.wikipedia.org/wiki/Mandelbrot_set#Basic_properties:~:text=x0%C2%A0%3A%3D%20scaled%20x%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20X%20scale%20(%2D2.00%2C%200.47))%0A%20%20%20%20y0%C2%A0%3A%3D%20scaled%20y%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20Y%20scale%20(%2D1.12%2C%201.12))
 
-    //     let iteration = calc_simple(xp, yp, max);
-
-    //     let color = if iteration == max {
-    //         0
-    //     } else {
-    //         (255 * iteration / max) as u8
-    //     };
-
-    //     *pixel = Rgb([color, color, color]);
-    // }
-
-    img.save("mandelbrot.png").unwrap();
+    simple_image(width, height, xmax, xmin, ymax, ymin, max);
+    // simd_image(width, height, xmax, xmin, ymax, ymin, max);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_simple_calc(b: &mut Bencher) {
+        b.iter(|| calc_simple(500.0, 500.0, 255));
+    }
+
+    #[bench]
+    fn bench_simd_calc(b: &mut Bencher) {
+        let x0 = Simd::splat(500.0);
+        let y0 = Simd::splat(500.0);
+        b.iter(|| calc_simd(x0, y0, 255));
+    }
 }
