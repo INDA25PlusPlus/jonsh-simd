@@ -38,7 +38,7 @@ fn calc_simd(x0: Simd<f64, LANES>, y0: Simd<f64, LANES>, i: u32) -> Simd<u64, LA
         let escaped = max2.simd_gt(Simd::splat(4.0));
         let ra = active & !escaped;
 
-        iteration = iteration + ra.select(Simd::splat(1), Simd::splat(0));
+        iteration = iteration + ra.select(Simd::splat(0), Simd::splat(1));
         active = ra;
 
         if !active.any() {
@@ -114,24 +114,53 @@ fn main() {
     let ymin = -1.12;
     //dessa min/max fick jag från kod-delen av mandelbrot wikipedia: https://en.wikipedia.org/wiki/Mandelbrot_set#Basic_properties:~:text=x0%C2%A0%3A%3D%20scaled%20x%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20X%20scale%20(%2D2.00%2C%200.47))%0A%20%20%20%20y0%C2%A0%3A%3D%20scaled%20y%20coordinate%20of%20pixel%20(scaled%20to%20lie%20in%20the%20Mandelbrot%20Y%20scale%20(%2D1.12%2C%201.12))
 
-    simple_image(width, height, xmax, xmin, ymax, ymin, max);
-    // simd_image(width, height, xmax, xmin, ymax, ymin, max);
+    // simple_image(width, height, xmax, xmin, ymax, ymin, max);
+    simd_image(width, height, xmax, xmin, ymax, ymin, max);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
+    use test::{Bencher, black_box};
 
     #[bench]
     fn bench_simple_calc(b: &mut Bencher) {
-        b.iter(|| calc_simple(500.0, 500.0, 255));
+        b.iter(|| {
+            for x in 500..504 {
+                calc_simple(x as f64, 500.0, 255);
+            }
+        });
     }
 
     #[bench]
     fn bench_simd_calc(b: &mut Bencher) {
-        let x0 = Simd::splat(500.0);
+        let x0 = Simd::from_array([500.0, 501.0, 502.0, 503.0]);
         let y0 = Simd::splat(500.0);
         b.iter(|| calc_simd(x0, y0, 255));
+    }
+
+    #[bench]
+    fn bench_image_simple(b: &mut Bencher) {
+        let width: usize = 640;
+        let height: usize = 360;
+        let max = 64;
+
+        let xmax = 0.47;
+        let xmin = -2.0;
+        let ymax = 1.12;
+        let ymin = -1.12;
+        b.iter(|| simple_image(width, height, xmax, xmin, ymax, ymin, max));
+    }
+    #[bench]
+    fn bench_image_simd(b: &mut Bencher) {
+        let width: usize = 640;
+        let height: usize = 360;
+        let max = 64;
+
+        let xmax = 0.47;
+        let xmin = -2.0;
+        let ymax = 1.12;
+        let ymin = -1.12;
+        b.iter(|| simd_image(width, height, xmax, xmin, ymax, ymin, max));
     }
 }
